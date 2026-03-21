@@ -1,0 +1,5 @@
+com\draw\gateway\model\StrokeEvent.class
+com\draw\gateway\websocket\DrawingSocketHandler.class
+com\draw\gateway\service\LeaderService.class
+com\draw\gateway\GatewayApplication.class
+com\draw\gateway\websocket\WebSocketConfig.class
