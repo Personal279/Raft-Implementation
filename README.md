@@ -88,7 +88,7 @@ Each replica runs the full Raft state machine:
 | Consensus engine | Java (from scratch) |
 | Backend / Replicas | Spring Boot, REST APIs |
 | Gateway | Spring Boot |
-| Frontend | React.js |
+| Frontend | HTML |
 | Containerization | Docker |
 | Inter-node communication | HTTP (AppendEntries, RequestVote RPCs) |
 
