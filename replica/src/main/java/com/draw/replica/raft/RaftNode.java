@@ -77,12 +77,13 @@ public class RaftNode {
     }
 
     private long generateTimeout() {
-        return ThreadLocalRandom.current().nextInt(1500, 4500);
+        return ThreadLocalRandom.current().nextInt(500, 800);
     }
 
     public synchronized AppendEntriesResponse handleAppendEntries(AppendEntriesRequest request) {
-
+        
         int currentTerm = nodeStateStore.getCurrentTerm();
+        setLastHeartbeatTime(System.currentTimeMillis());
 
         if (request.getTerm() < currentTerm) {
             return new AppendEntriesResponse(currentTerm, false);
@@ -95,7 +96,6 @@ public class RaftNode {
             setKnownLeaderId(request.getLeaderId());
         }
 
-        setLastHeartbeatTime(System.currentTimeMillis());
 
         int prevLogIndex = request.getPrevLogIndex();
         int prevLogTerm = request.getPrevLogTerm();

@@ -12,6 +12,7 @@ import java.util.List;
 
 @Service
 public class HeartbeatService {
+    private final ReplicationService replicationService;
 
     private final NodeStateStore nodeStateStore;
     private final RaftNode raftNode;
@@ -19,10 +20,11 @@ public class HeartbeatService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    public HeartbeatService(NodeStateStore nodeStateStore, RaftNode raftNode, LogStore logStore) {
+    public HeartbeatService(NodeStateStore nodeStateStore, RaftNode raftNode, LogStore logStore,ReplicationService replicationService) {
         this.nodeStateStore = nodeStateStore;
         this.raftNode = raftNode;
         this.logStore = logStore;
+        this.replicationService = replicationService;
     }
 
     @Scheduled(fixedRate = 75)
@@ -49,11 +51,16 @@ public class HeartbeatService {
                 request.setEntries(List.of());
                 request.setLeaderCommit(lastIndex);
 
-                restTemplate.postForObject(
+                AppendEntriesResponse response = restTemplate.postForObject(
                         "http://" + peer + "/raft/append",
                         request,
                         AppendEntriesResponse.class
                 );
+
+                 if (response != null && !response.isSuccess()) {
+                        System.out.println("[SYNC] Peer " + peer + " behind, syncing...");
+                        replicationService.syncPeer(peer);
+                    }
 
             } catch (Exception ignored) {}
         }

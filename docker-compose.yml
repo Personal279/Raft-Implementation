@@ -1,0 +1,66 @@
+version: '3.8'
+
+networks:
+  raft-net:
+    driver: bridge
+
+services:
+  replica1:
+    build: ./replica
+    container_name: replica1
+    networks:
+      - raft-net
+    ports:
+      - "8081:8081"
+    environment:
+      - NODE_ID=node1
+      - PORT=8081
+      - PEERS=replica2:8082,replica3:8083
+
+  replica2:
+    build: ./replica
+    container_name: replica2
+    networks:
+      - raft-net
+    ports:
+      - "8082:8082"
+    environment:
+      - NODE_ID=node2
+      - PORT=8082
+      - PEERS=replica1:8081,replica3:8083
+
+  replica3:
+    build: ./replica
+    container_name: replica3
+    networks:
+      - raft-net
+    ports:
+      - "8083:8083"
+    environment:
+      - NODE_ID=node3
+      - PORT=8083
+      - PEERS=replica1:8081,replica2:8082
+
+  gateway:
+    build: ./gateway
+    container_name: gateway
+    networks:
+      - raft-net
+    ports:
+      - "8080:8080"
+    environment:
+      - REPLICAS=replica1:8081,replica2:8082,replica3:8083
+    depends_on:
+      - replica1
+      - replica2
+      - replica3
+
+  frontend:
+    image: nginx:alpine
+    container_name: frontend
+    networks:
+      - raft-net
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html

@@ -111,7 +111,11 @@ public class ReplicationService {
                 return false;
             }
         }
-
+        
         return false;
+    }
+    public void syncPeer(String peer) {
+        nextIndex.put(peer, 0);
+        replicateToPeer(peer, logStore.size() - 1);
     }
 }

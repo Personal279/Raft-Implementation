@@ -34,7 +34,6 @@ body {
   flex-direction: column;
 }
 
-/* ── Header ── */
 #header {
   display: flex;
   align-items: center;
@@ -79,14 +78,12 @@ body {
 }
 #ws-status.connected { background: var(--success); box-shadow: 0 0 8px var(--success); }
 
-/* ── Main Layout ── */
 #main {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
 
-/* ── Left Toolbar ── */
 #left-bar {
   width: 60px;
   background: var(--panel);
@@ -126,7 +123,6 @@ body {
   margin: 6px 0;
 }
 
-/* tooltip */
 .tool-btn::after {
   content: attr(data-tip);
   position: absolute;
@@ -147,7 +143,6 @@ body {
 }
 .tool-btn:hover::after { opacity: 1; }
 
-/* ── Canvas Area ── */
 #canvas-wrap {
   flex: 1;
   position: relative;
@@ -175,7 +170,6 @@ body {
   z-index: 1;
 }
 
-/* ── Right Panel ── */
 #right-panel {
   width: 220px;
   background: var(--panel);
@@ -200,7 +194,6 @@ body {
   margin-bottom: 10px;
 }
 
-/* Color Palette */
 #color-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -222,7 +215,6 @@ body {
   transform: scale(1.1);
 }
 
-/* Custom color */
 #custom-color-wrap {
   margin-top: 8px;
   display: flex;
@@ -246,7 +238,6 @@ body {
   color: var(--muted);
 }
 
-/* Size Slider */
 #size-wrap { display: flex; flex-direction: column; gap: 8px; }
 .size-row { display: flex; align-items: center; justify-content: space-between; }
 #size-val {
@@ -272,14 +263,12 @@ input[type=range]::-webkit-slider-thumb {
   box-shadow: 0 0 8px var(--accent);
 }
 
-/* Opacity */
 #opacity-val {
   font-family: 'Space Mono', monospace;
   font-size: 11px;
   color: var(--accent3);
 }
 
-/* Effects */
 #effects-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -301,7 +290,6 @@ input[type=range]::-webkit-slider-thumb {
 .fx-btn:hover { border-color: var(--accent2); color: var(--accent2); }
 .fx-btn.active { border-color: var(--accent2); color: var(--accent2); background: rgba(6,182,212,0.1); }
 
-/* Actions */
 #actions-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -327,7 +315,6 @@ input[type=range]::-webkit-slider-thumb {
 .action-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
 .action-btn.success:hover { border-color: var(--success); color: var(--success); }
 
-/* Stats */
 #stats {
   font-family: 'Space Mono', monospace;
   font-size: 9px;
@@ -335,7 +322,6 @@ input[type=range]::-webkit-slider-thumb {
   line-height: 1.8;
 }
 
-/* ── Bottom Bar ── */
 #bottom-bar {
   height: 28px;
   background: var(--panel);
@@ -358,7 +344,6 @@ input[type=range]::-webkit-slider-thumb {
   margin-left: auto;
 }
 
-/* ── Neon Cursor ── */
 #cursor-ring {
   position: fixed;
   width: 20px; height: 20px;
@@ -371,7 +356,6 @@ input[type=range]::-webkit-slider-thumb {
   mix-blend-mode: screen;
 }
 
-/* ── Brush Preview ── */
 #brush-preview {
   position: absolute;
   top: 14px;
@@ -398,7 +382,6 @@ input[type=range]::-webkit-slider-thumb {
   transition: all 0.2s;
 }
 
-/* Canvas glow effect on draw */
 @keyframes canvasGlow {
   0% { box-shadow: none; }
   50% { box-shadow: inset 0 0 40px rgba(124,58,237,0.08); }
@@ -406,7 +389,6 @@ input[type=range]::-webkit-slider-thumb {
 }
 .drawing-glow { animation: canvasGlow 0.4s ease; }
 
-/* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: var(--panel); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -416,7 +398,6 @@ input[type=range]::-webkit-slider-thumb {
 
 <div id="cursor-ring"></div>
 
-<!-- Header -->
 <div id="header">
   <div id="logo">CANVAS // STUDIO</div>
   <div id="header-right">
@@ -426,10 +407,8 @@ input[type=range]::-webkit-slider-thumb {
   </div>
 </div>
 
-<!-- Main -->
 <div id="main">
 
-  <!-- Left Toolbar -->
   <div id="left-bar">
     <button class="tool-btn active" id="btn-pen" data-tool="pen" data-tip="Pen">✏️</button>
     <button class="tool-btn" id="btn-line" data-tool="line" data-tip="Line">╱</button>
@@ -449,7 +428,6 @@ input[type=range]::-webkit-slider-thumb {
     <button class="tool-btn" id="btn-redo" data-tip="Redo (Ctrl+Y)">↪</button>
   </div>
 
-  <!-- Canvas -->
   <div id="canvas-wrap">
     <canvas id="board"></canvas>
     <div id="brush-preview">
@@ -458,7 +436,6 @@ input[type=range]::-webkit-slider-thumb {
     </div>
   </div>
 
-  <!-- Right Panel -->
   <div id="right-panel">
 
     <div class="panel-section">
@@ -522,14 +499,12 @@ input[type=range]::-webkit-slider-thumb {
   </div>
 </div>
 
-<!-- Bottom Bar -->
 <div id="bottom-bar">
   <span id="coords">x: 0  y: 0</span>
   <span id="zoom-info">100% · canvas studio</span>
 </div>
 
 <script>
-// ── State ──
 const COLORS = [
   '#ffffff','#e2e8f0','#94a3b8','#1a1a2e',
   '#ef4444','#f97316','#f59e0b','#84cc16',
@@ -564,8 +539,31 @@ const cursorRing = document.getElementById('cursor-ring');
 let socket;
 try {
   socket = new WebSocket("ws://localhost:8080/draw");
-  socket.onopen = () => { document.getElementById('ws-status').classList.add('connected'); };
-  socket.onclose = () => { document.getElementById('ws-status').classList.remove('connected'); };
+  socket.onopen = () => {
+    document.getElementById('ws-status').classList.add('connected');
+  };
+  socket.onclose = () => {
+    document.getElementById('ws-status').classList.remove('connected');
+  };
+  socket.onmessage = (msg) => {
+    try {
+      const event = JSON.parse(msg.data);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = event.color || '#e2e8f0';
+      ctx.fillStyle = event.color || '#e2e8f0';
+      ctx.lineWidth = event.size || 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.shadowBlur = 0;
+      ctx.filter = 'none';
+      ctx.beginPath();
+      ctx.moveTo(event.x1, event.y1);
+      ctx.lineTo(event.x2, event.y2);
+      ctx.stroke();
+    } catch(e) {
+      console.log('onmessage error:', e);
+    }
+  };
 } catch(e) {}
 
 function sendStroke(data) {
@@ -659,7 +657,7 @@ toolBtns.forEach(btn => {
 });
 
 // ── Effects ──
-function toggleFx(id, varName) {
+function toggleFx(id) {
   const btn = document.getElementById(id);
   btn.classList.toggle('active');
   return btn.classList.contains('active');
@@ -706,7 +704,6 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey && e.key === 'y') redo();
 });
 
-// ── Stats ──
 function updateStats() {
   document.getElementById('stat-history').textContent = history.length;
 }
@@ -741,22 +738,11 @@ function setupCtx(c) {
   ctx.lineWidth = size;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-
-  if (shadowMode) {
-    ctx.shadowColor = c;
-    ctx.shadowBlur = size * 2;
-  } else {
-    ctx.shadowBlur = 0;
-  }
-  if (glowMode) {
-    ctx.shadowColor = c;
-    ctx.shadowBlur = size * 4;
-  }
-  if (blurMode) {
-    ctx.filter = `blur(${Math.max(1, size / 6)}px)`;
-  } else {
-    ctx.filter = 'none';
-  }
+  if (shadowMode) { ctx.shadowColor = c; ctx.shadowBlur = size * 2; }
+  else { ctx.shadowBlur = 0; }
+  if (glowMode) { ctx.shadowColor = c; ctx.shadowBlur = size * 4; }
+  if (blurMode) { ctx.filter = `blur(${Math.max(1, size / 6)}px)`; }
+  else { ctx.filter = 'none'; }
 }
 
 function resetCtx() {
@@ -894,7 +880,6 @@ canvas.addEventListener('touchstart', e => { e.preventDefault(); start(e); }, { 
 canvas.addEventListener('touchmove',  e => { e.preventDefault(); move(e); }, { passive: false });
 canvas.addEventListener('touchend',   e => { e.preventDefault(); end(e); });
 
-// Custom cursor
 document.addEventListener('mousemove', e => {
   cursorRing.style.left = e.clientX + 'px';
   cursorRing.style.top = e.clientY + 'px';
@@ -913,22 +898,12 @@ wrap.addEventListener('mousemove', e => {
 function start(e) {
   [startX, startY] = pos(e);
   const c = rainbowMode ? getRainbowColor() : (tool === 'erase' ? '#0d0d15' : color);
-
-  if (tool === 'fill') {
-    saveHistory();
-    floodFill(startX, startY, rainbowMode ? getRainbowColor() : color);
-    return;
-  }
-  if (tool === 'text') {
-    addTextInput(startX, startY);
-    return;
-  }
-
+  if (tool === 'fill') { saveHistory(); floodFill(startX, startY, rainbowMode ? getRainbowColor() : color); return; }
+  if (tool === 'text') { addTextInput(startX, startY); return; }
   saveHistory();
   drawing = true;
   snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
   setupCtx(c);
-
   if (tool === 'pen' || tool === 'erase' || tool === 'spray') {
     ctx.beginPath();
     ctx.moveTo(startX, startY);
@@ -942,11 +917,10 @@ function move(e) {
   const [x, y] = pos(e);
   const c = rainbowMode ? getRainbowColor() : (tool === 'erase' ? '#0d0d15' : color);
   setupCtx(c);
-
   if (tool === 'pen' || tool === 'erase') {
     ctx.lineTo(x, y);
     ctx.stroke();
-    sendStroke({ type: tool, x1: startX, y1: startY, x2: x, y2: y, color: c });
+    sendStroke({ type: tool, x1: startX, y1: startY, x2: x, y2: y, color: c, size: size });
     startX = x; startY = y;
   } else if (tool === 'spray') {
     spray(x, y);

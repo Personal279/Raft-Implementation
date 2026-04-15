@@ -23,4 +23,6 @@ public class LeaderController {
             "leader", raftNode.getKnownLeaderId() != null ? raftNode.getKnownLeaderId() : ""
         );
     }
+
+    
 }
