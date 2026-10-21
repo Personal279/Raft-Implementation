@@ -12,10 +12,13 @@ services:
       - raft-net
     ports:
       - "8081:8081"
+    volumes:
+      - replica1-data:/data
     environment:
       - NODE_ID=node1
       - PORT=8081
       - PEERS=replica2:8082,replica3:8083
+      - RAFT_DATA_DIR=/data
 
   replica2:
     build: ./replica
@@ -24,10 +27,13 @@ services:
       - raft-net
     ports:
       - "8082:8082"
+    volumes:
+      - replica2-data:/data
     environment:
       - NODE_ID=node2
       - PORT=8082
       - PEERS=replica1:8081,replica3:8083
+      - RAFT_DATA_DIR=/data
 
   replica3:
     build: ./replica
@@ -36,10 +42,13 @@ services:
       - raft-net
     ports:
       - "8083:8083"
+    volumes:
+      - replica3-data:/data
     environment:
       - NODE_ID=node3
       - PORT=8083
       - PEERS=replica1:8081,replica2:8082
+      - RAFT_DATA_DIR=/data
 
   gateway:
     build: ./gateway
@@ -64,3 +73,7 @@ services:
       - "3000:80"
     volumes:
       - ./frontend:/usr/share/nginx/html
+volumes:
+  replica1-data:
+  replica2-data:
+  replica3-data:

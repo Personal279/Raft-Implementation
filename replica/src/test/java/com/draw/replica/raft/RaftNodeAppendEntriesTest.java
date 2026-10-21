@@ -96,6 +96,22 @@ class RaftNodeAppendEntriesTest {
     }
 
     @Test
+    void conflictingAppendCannotOverwriteCommittedEntry() {
+        state.setCurrentTerm(1);
+        log.append(entry(1, "committed"));
+        node.advanceCommitIndex(0);
+
+        AppendEntriesRequest conflicting = request(
+                2, -1, 0, List.of(entry(2, "replacement")), -1);
+        AppendEntriesResponse response = node.handleAppendEntries(conflicting);
+
+        assertFalse(response.isSuccess());
+        assertEquals(1, log.size());
+        assertEquals("committed", log.get(0).getEvent().getType());
+        assertEquals(0, node.getCommitIndex());
+    }
+
+    @Test
     void followerCommitIndexIsBoundedByLocalLog() {
         state.setCurrentTerm(1);
         log.append(entry(1, "a"));

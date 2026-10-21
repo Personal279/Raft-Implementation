@@ -24,12 +24,17 @@ public class RaftNode {
     private volatile long lastHeartbeatTime = System.currentTimeMillis() + 5000;
     private volatile long electionTimeout = generateTimeout();
     private volatile String knownLeaderId = null;
-    private volatile int commitIndex = -1;
+    private volatile int commitIndex;
 
     public RaftNode(Environment env, NodeStateStore nodeStateStore, LogStore logStore) {
         this.env = env;
         this.nodeStateStore = nodeStateStore;
         this.logStore = logStore;
+        this.commitIndex = nodeStateStore.getCommitIndex();
+        if (this.commitIndex > logStore.getLastIndex()) {
+            throw new IllegalStateException("Persisted commitIndex " + this.commitIndex
+                    + " exceeds local lastLogIndex " + logStore.getLastIndex());
+        }
     }
 
     public String getNodeId() {
@@ -70,7 +75,9 @@ public class RaftNode {
     public synchronized int advanceCommitIndex(int requestedIndex) {
         int lastLogIndex = logStore.getLastIndex();
         if (requestedIndex > commitIndex && lastLogIndex >= 0) {
-            commitIndex = Math.min(requestedIndex, lastLogIndex);
+            int newCommitIndex = Math.min(requestedIndex, lastLogIndex);
+            nodeStateStore.setCommitIndex(newCommitIndex);
+            commitIndex = newCommitIndex;
         }
         return commitIndex;
     }
@@ -129,6 +136,9 @@ public class RaftNode {
             // only the conflicting suffix and append the leader's suffix.
             while (incomingOffset < incoming.size() && localIndex < logStore.size()) {
                 if (logStore.get(localIndex).getTerm() != incoming.get(incomingOffset).getTerm()) {
+                    if (localIndex <= commitIndex) {
+                        return new AppendEntriesResponse(nodeStateStore.getCurrentTerm(), false);
+                    }
                     logStore.truncateFrom(localIndex);
                     break;
                 }
