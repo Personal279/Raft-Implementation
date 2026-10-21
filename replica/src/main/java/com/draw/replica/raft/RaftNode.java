@@ -75,8 +75,13 @@ public class RaftNode {
         return commitIndex;
     }
 
+    /**
+     * RPC timeouts are capped below this randomized election window. The
+     * wider window lets a leader contact a healthy follower even if an earlier
+     * peer in its configured list is unavailable.
+     */
     private long generateTimeout() {
-        return ThreadLocalRandom.current().nextInt(500, 800);
+        return ThreadLocalRandom.current().nextInt(1200, 1800);
     }
 
     public synchronized AppendEntriesResponse handleAppendEntries(AppendEntriesRequest request) {

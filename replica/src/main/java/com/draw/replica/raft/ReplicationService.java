@@ -19,14 +19,15 @@ public class ReplicationService {
     private final LogStore logStore;
     private final NodeStateStore nodeStateStore;
     private final RaftNode raftNode;
-
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final Map<String, Integer> nextIndex = new ConcurrentHashMap<>();
 
-    public ReplicationService(LogStore logStore, NodeStateStore nodeStateStore, RaftNode raftNode) {
+    public ReplicationService(LogStore logStore, NodeStateStore nodeStateStore,
+                              RaftNode raftNode, RestTemplate restTemplate) {
         this.logStore = logStore;
         this.nodeStateStore = nodeStateStore;
         this.raftNode = raftNode;
+        this.restTemplate = restTemplate;
     }
 
     /**
@@ -49,7 +50,7 @@ public class ReplicationService {
             nextIndex.putIfAbsent(peer, lastIndex);
         }
 
-        int acknowledgements = 1; // The leader itself stores the entry.
+        int acknowledgements = 1;
         for (String peer : raftNode.getPeers()) {
             if (replicateToPeer(peer, lastIndex, term)) {
                 acknowledgements++;
@@ -59,9 +60,6 @@ public class ReplicationService {
         int clusterSize = raftNode.getPeers().size() + 1;
         int majority = clusterSize / 2 + 1;
 
-        // Only commit if this node is still leader in the term that created
-        // the entry. This entry is from the current term, so majority
-        // replication is sufficient to advance the leader's commitIndex.
         if (acknowledgements >= majority
                 && "LEADER".equals(raftNode.getRole())
                 && nodeStateStore.getCurrentTerm() == term) {
@@ -92,7 +90,6 @@ public class ReplicationService {
             }
 
             List<LogEntry> entriesToSend = logStore.getFrom(ni);
-
             AppendEntriesRequest request = new AppendEntriesRequest();
             request.setTerm(leaderTerm);
             request.setLeaderId(raftNode.getNodeId());
@@ -100,8 +97,7 @@ public class ReplicationService {
             request.setPrevLogTerm(prevLogTerm);
             request.setEntries(entriesToSend);
 
-            // Crucial: do not tell followers that the just-appended entry is
-            // committed before the leader has received majority acknowledgements.
+            // Only advertise entries already committed by the leader.
             request.setLeaderCommit(raftNode.getCommitIndex());
 
             try {

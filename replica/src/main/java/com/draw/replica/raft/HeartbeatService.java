@@ -16,14 +16,16 @@ public class HeartbeatService {
     private final NodeStateStore nodeStateStore;
     private final RaftNode raftNode;
     private final LogStore logStore;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
     public HeartbeatService(NodeStateStore nodeStateStore, RaftNode raftNode,
-                            LogStore logStore, ReplicationService replicationService) {
+                            LogStore logStore, ReplicationService replicationService,
+                            RestTemplate restTemplate) {
         this.nodeStateStore = nodeStateStore;
         this.raftNode = raftNode;
         this.logStore = logStore;
         this.replicationService = replicationService;
+        this.restTemplate = restTemplate;
     }
 
     @Scheduled(fixedRate = 75)
@@ -35,7 +37,6 @@ public class HeartbeatService {
         int leaderTerm = nodeStateStore.getCurrentTerm();
 
         for (String peer : raftNode.getPeers()) {
-            // A prior peer's response may have caused this node to step down.
             if (!"LEADER".equals(raftNode.getRole())
                     || nodeStateStore.getCurrentTerm() != leaderTerm) {
                 return;
@@ -48,9 +49,6 @@ public class HeartbeatService {
                 request.setPrevLogIndex(lastIndex);
                 request.setPrevLogTerm(lastTerm);
                 request.setEntries(List.of());
-
-                // Only advertise entries that have actually been committed
-                // by the leader, not merely the latest local log index.
                 request.setLeaderCommit(raftNode.getCommitIndex());
 
                 AppendEntriesResponse response = restTemplate.postForObject(
@@ -70,7 +68,8 @@ public class HeartbeatService {
                 }
 
                 if (!response.isSuccess()) {
-                    System.out.println("[SYNC] Peer " + peer + " rejected heartbeat/log prefix; syncing...");
+                    System.out.println("[SYNC] Peer " + peer
+                            + " rejected heartbeat/log prefix; syncing...");
                     replicationService.syncPeer(peer);
                 }
             } catch (Exception e) {
