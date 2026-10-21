@@ -9,9 +9,9 @@ import com.draw.replica.storage.NodeStateStore;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class ReplicationService {
@@ -21,7 +21,7 @@ public class ReplicationService {
     private final RaftNode raftNode;
 
     private final RestTemplate restTemplate = new RestTemplate();
-    private final Map<String, Integer> nextIndex = new HashMap<>();
+    private final Map<String, Integer> nextIndex = new ConcurrentHashMap<>();
 
     public ReplicationService(LogStore logStore, NodeStateStore nodeStateStore, RaftNode raftNode) {
         this.logStore = logStore;
@@ -29,39 +29,61 @@ public class ReplicationService {
         this.raftNode = raftNode;
     }
 
-    public void replicate(StrokeEvent event) {
+    /**
+     * Serializes writes through this leader so concurrent client requests do
+     * not race while appending, replicating, and advancing commitIndex.
+     */
+    public synchronized void replicate(StrokeEvent event) {
+        if (!"LEADER".equals(raftNode.getRole())) {
+            System.out.println("[REPLICATION REJECTED] Node " + raftNode.getNodeId()
+                    + " is not the leader; known leader: " + raftNode.getKnownLeaderId());
+            return;
+        }
 
-        LogEntry entry = new LogEntry(nodeStateStore.getCurrentTerm(), event);
+        int term = nodeStateStore.getCurrentTerm();
+        LogEntry entry = new LogEntry(term, event);
         logStore.append(entry);
-
-        int lastIndex = logStore.size() - 1;
+        int lastIndex = logStore.getLastIndex();
 
         for (String peer : raftNode.getPeers()) {
             nextIndex.putIfAbsent(peer, lastIndex);
         }
 
-        int success = 1;
-
+        int acknowledgements = 1; // The leader itself stores the entry.
         for (String peer : raftNode.getPeers()) {
-            if (replicateToPeer(peer, lastIndex)) {
-                success++;
+            if (replicateToPeer(peer, lastIndex, term)) {
+                acknowledgements++;
             }
         }
 
-        int majority = (raftNode.getPeers().size() + 1) / 2 + 1;
+        int clusterSize = raftNode.getPeers().size() + 1;
+        int majority = clusterSize / 2 + 1;
 
-        if (success >= majority) {
-            System.out.println("[COMMITTED] Leader " + raftNode.getNodeId() + " committed entry at index " + lastIndex + ". Replicated to " + success + "/" + (raftNode.getPeers().size() + 1) + " nodes.");
+        // Only commit if this node is still leader in the term that created
+        // the entry. This entry is from the current term, so majority
+        // replication is sufficient to advance the leader's commitIndex.
+        if (acknowledgements >= majority
+                && "LEADER".equals(raftNode.getRole())
+                && nodeStateStore.getCurrentTerm() == term) {
+            raftNode.advanceCommitIndex(lastIndex);
+            System.out.println("[COMMITTED] Leader " + raftNode.getNodeId()
+                    + " committed index " + lastIndex + " in term " + term
+                    + ". Acknowledgements: " + acknowledgements + "/" + clusterSize);
         } else {
-            System.out.println("[FAILED] Leader " + raftNode.getNodeId() + " could not reach majority. Only " + success + "/" + (raftNode.getPeers().size() + 1) + " nodes responded.");
+            System.out.println("[UNCOMMITTED] Entry at index " + lastIndex
+                    + " did not reach a valid majority. Acknowledgements: "
+                    + acknowledgements + "/" + clusterSize);
         }
     }
 
-    private boolean replicateToPeer(String peer, int lastIndex) {
-
+    private boolean replicateToPeer(String peer, int targetLastIndex, int leaderTerm) {
         int ni = nextIndex.getOrDefault(peer, 0);
 
         while (ni >= 0) {
+            if (!"LEADER".equals(raftNode.getRole())
+                    || nodeStateStore.getCurrentTerm() != leaderTerm) {
+                return false;
+            }
 
             int prevLogIndex = ni - 1;
             int prevLogTerm = 0;
@@ -72,15 +94,17 @@ public class ReplicationService {
             List<LogEntry> entriesToSend = logStore.getFrom(ni);
 
             AppendEntriesRequest request = new AppendEntriesRequest();
-            request.setTerm(nodeStateStore.getCurrentTerm());
+            request.setTerm(leaderTerm);
             request.setLeaderId(raftNode.getNodeId());
             request.setPrevLogIndex(prevLogIndex);
             request.setPrevLogTerm(prevLogTerm);
             request.setEntries(entriesToSend);
-            request.setLeaderCommit(lastIndex);
+
+            // Crucial: do not tell followers that the just-appended entry is
+            // committed before the leader has received majority acknowledgements.
+            request.setLeaderCommit(raftNode.getCommitIndex());
 
             try {
-
                 AppendEntriesResponse response = restTemplate.postForObject(
                         "http://" + peer + "/raft/append",
                         request,
@@ -89,33 +113,38 @@ public class ReplicationService {
 
                 if (response == null) return false;
 
-                if (response.getTerm() > nodeStateStore.getCurrentTerm()) {
+                int currentTerm = nodeStateStore.getCurrentTerm();
+                if (response.getTerm() > currentTerm) {
                     nodeStateStore.setCurrentTerm(response.getTerm());
                     raftNode.setRole("FOLLOWER");
+                    raftNode.setKnownLeaderId(null);
                     nodeStateStore.setVotedFor(null);
                     return false;
                 }
 
-                if (response.isSuccess()) {
-                    nextIndex.put(peer, lastIndex + 1);
-                    System.out.println("[CATCHUP] Peer " + peer + " is now caught up to index " + lastIndex);
-                    return true;
-                } else {
-                    ni--;
-                    nextIndex.put(peer, Math.max(0, ni));
-                    System.out.println("[CATCHUP] Peer " + peer + " rejected, stepping back to index " + ni);
+                if (response.getTerm() < leaderTerm) {
+                    return false;
                 }
 
+                if (response.isSuccess()) {
+                    nextIndex.put(peer, targetLastIndex + 1);
+                    return true;
+                }
+
+                ni--;
+                nextIndex.put(peer, Math.max(0, ni));
             } catch (Exception e) {
-                System.out.println("[REPLICATION ERROR] Failed to replicate to peer " + peer + ": " + e.getMessage());
+                System.out.println("[REPLICATION ERROR] Failed to replicate to peer "
+                        + peer + ": " + e.getMessage());
                 return false;
             }
         }
-        
+
         return false;
     }
-    public void syncPeer(String peer) {
+
+    public synchronized void syncPeer(String peer) {
         nextIndex.put(peer, 0);
-        replicateToPeer(peer, logStore.size() - 1);
+        replicateToPeer(peer, logStore.getLastIndex(), nodeStateStore.getCurrentTerm());
     }
 }
