@@ -88,15 +88,22 @@ public class ElectionService {
         if (raftNode.getRole().equals("LEADER")) return;
 
         raftNode.setRole("CANDIDATE");
-        nodeStateStore.setVotedFor(raftNode.getNodeId());
+        raftNode.setKnownLeaderId(null);
         nodeStateStore.incrementTerm();
         int currentTerm = nodeStateStore.getCurrentTerm();
+        // Preserve the self-vote for the entire term, even if this election fails.
+        nodeStateStore.setVotedFor(raftNode.getNodeId());
 
         System.out.println("[ELECTION] Node " + raftNode.getNodeId() + " starting election for term " + currentTerm + " peers: " + peers);
 
         int votes = 1;
 
         for (String peer : peers) {
+            // Ignore delayed results from an election whose term or role changed.
+            if (!"CANDIDATE".equals(raftNode.getRole())
+                    || nodeStateStore.getCurrentTerm() != currentTerm) {
+                return;
+            }
 
             try {
 
@@ -121,6 +128,7 @@ public class ElectionService {
                         nodeStateStore.setCurrentTerm(response.getTerm());
                         raftNode.setRole("FOLLOWER");
                         nodeStateStore.setVotedFor(null);
+                        raftNode.setKnownLeaderId(null);
                         return;
                     }
 
@@ -140,14 +148,17 @@ public class ElectionService {
 
         System.out.println("[ELECTION] Node " + raftNode.getNodeId() + " got " + votes + "/" + clusterSize + " votes, majority needed: " + majority);
 
-        if (votes >= majority) {
+        if (votes >= majority
+                && "CANDIDATE".equals(raftNode.getRole())
+                && nodeStateStore.getCurrentTerm() == currentTerm) {
             raftNode.setRole("LEADER");
             raftNode.setLastHeartbeatTime(System.currentTimeMillis());
             System.out.println("[ELECTION] NODE BECAME LEADER: " + raftNode.getNodeId() + " term: " + currentTerm);
             sendImmediateHeartbeat();
-        } else {
+        } else if ("CANDIDATE".equals(raftNode.getRole())
+                && nodeStateStore.getCurrentTerm() == currentTerm) {
+            // Do not clear votedFor: Raft allows at most one vote per term.
             raftNode.setRole("FOLLOWER");
-            nodeStateStore.setVotedFor(null);
             raftNode.resetElectionTimeout();
         }
     }
