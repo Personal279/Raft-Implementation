@@ -13,43 +13,43 @@ import java.util.List;
 @Service
 public class HeartbeatService {
     private final ReplicationService replicationService;
-
     private final NodeStateStore nodeStateStore;
     private final RaftNode raftNode;
     private final LogStore logStore;
+    private final RestTemplate restTemplate;
 
-    private final RestTemplate restTemplate = new RestTemplate();
-
-    public HeartbeatService(NodeStateStore nodeStateStore, RaftNode raftNode, LogStore logStore,ReplicationService replicationService) {
+    public HeartbeatService(NodeStateStore nodeStateStore, RaftNode raftNode,
+                            LogStore logStore, ReplicationService replicationService,
+                            RestTemplate restTemplate) {
         this.nodeStateStore = nodeStateStore;
         this.raftNode = raftNode;
         this.logStore = logStore;
         this.replicationService = replicationService;
+        this.restTemplate = restTemplate;
     }
 
     @Scheduled(fixedRate = 75)
     public void sendHeartbeat() {
+        if (!"LEADER".equals(raftNode.getRole())) return;
 
-        if (!raftNode.getRole().equals("LEADER")) return;
-
-        int lastIndex = logStore.size() - 1;
-
-        int lastTerm = 0;
-        if (lastIndex >= 0) {
-            lastTerm = logStore.get(lastIndex).getTerm();
-        }
+        int lastIndex = logStore.getLastIndex();
+        int lastTerm = lastIndex >= 0 ? logStore.get(lastIndex).getTerm() : 0;
+        int leaderTerm = nodeStateStore.getCurrentTerm();
 
         for (String peer : raftNode.getPeers()) {
+            if (!"LEADER".equals(raftNode.getRole())
+                    || nodeStateStore.getCurrentTerm() != leaderTerm) {
+                return;
+            }
 
             try {
-
                 AppendEntriesRequest request = new AppendEntriesRequest();
-                request.setTerm(nodeStateStore.getCurrentTerm());
+                request.setTerm(leaderTerm);
                 request.setLeaderId(raftNode.getNodeId());
                 request.setPrevLogIndex(lastIndex);
                 request.setPrevLogTerm(lastTerm);
                 request.setEntries(List.of());
-                request.setLeaderCommit(lastIndex);
+                request.setLeaderCommit(raftNode.getCommitIndex());
 
                 AppendEntriesResponse response = restTemplate.postForObject(
                         "http://" + peer + "/raft/append",
@@ -57,12 +57,24 @@ public class HeartbeatService {
                         AppendEntriesResponse.class
                 );
 
-                 if (response != null && !response.isSuccess()) {
-                        System.out.println("[SYNC] Peer " + peer + " behind, syncing...");
-                        replicationService.syncPeer(peer);
-                    }
+                if (response == null) continue;
 
-            } catch (Exception ignored) {}
+                if (response.getTerm() > nodeStateStore.getCurrentTerm()) {
+                    nodeStateStore.setCurrentTerm(response.getTerm());
+                    nodeStateStore.setVotedFor(null);
+                    raftNode.setRole("FOLLOWER");
+                    raftNode.setKnownLeaderId(null);
+                    return;
+                }
+
+                if (!response.isSuccess()) {
+                    System.out.println("[SYNC] Peer " + peer
+                            + " rejected heartbeat/log prefix; syncing...");
+                    replicationService.syncPeer(peer);
+                }
+            } catch (Exception e) {
+                System.out.println("[HEARTBEAT ERROR] Peer " + peer + ": " + e.getMessage());
+            }
         }
     }
 }
